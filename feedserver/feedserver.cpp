@@ -4,6 +4,9 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <random>
+#include <cmath>
+#include <cstring>
 
 FeedServer::FeedServer(int port, std::string IP)
 {
@@ -11,6 +14,9 @@ FeedServer::FeedServer(int port, std::string IP)
     port_ = port;
     IP_ = IP;
     
+    // Initialize the active symbols
+    initSymbols();
+
     // Socket
     server_fd_ = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -33,7 +39,7 @@ OrderMsg FeedServer::GenerateEvent()
     static std::discrete_distribution<int> eventPick({45, 40, 25});
     static std::uniform_int_distribution<int> symbolPick(0, 9);
     static std::uniform_int_distribution<int> qtyPick(1, 500);
-    static std::normal_distribution<double> priceMovePick(0.0, 10.0); // mean 0, stddev 10 cents
+    static std::normal_distribution<double> pctMovePick(0.0, 0.001); // mean 0, stddev 0.1% of price
 
     int outcome = eventPick(gen);
     char type = (outcome == 0) ? 'A' : (outcome == 1) ? 'U' : 'E';
@@ -41,7 +47,8 @@ OrderMsg FeedServer::GenerateEvent()
     int symIdx = symbolPick(gen);
     Symbol& sym = activeSymbols[symIdx];
 
-    int priceMove = (int)(std::round(priceMovePick(gen)));
+    double pctMove = pctMovePick(gen);
+    int priceMove = (int)(std::round(sym.price * pctMove));
     int newPrice = (int)(sym.price) + priceMove;
     if (newPrice < 100) newPrice = 100; // floor at $1.00, in cents
     sym.price = (uint32_t)(newPrice);
@@ -56,4 +63,44 @@ OrderMsg FeedServer::GenerateEvent()
     msg.msgLength = sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint16_t) + sizeof(char); // 11
 
     return msg;
+}
+
+void FeedServer::initSymbols()
+{
+    activeSymbols[0] = {"AAPL", 1, 15000}; // $150.00
+    activeSymbols[1] = {"GOOGL", 2, 280000}; // $2800.00
+    activeSymbols[2] = {"MSFT", 3, 30000}; // $300.00
+    activeSymbols[3] = {"AMZN", 4, 350000}; // $3500.00
+    activeSymbols[4] = {"TSLA", 5, 70000}; // $700.00
+    activeSymbols[5] = {"FB", 6, 35000}; // $350.00
+    activeSymbols[6] = {"NFLX", 7, 55000}; // $550.00
+    activeSymbols[7] = {"NVDA", 8, 22000}; // $220.00
+    activeSymbols[8] = {"BABA", 9, 20000}; // $200.00
+    activeSymbols[9] = {"INTC", 10, 5000}; // $50.00
+}
+
+void FeedServer::sendStockDirectoryMsgs()
+{
+    for (int i = 0; i < 10; i++)
+    {
+        StockDirectoryMsg msg{};
+        msg.tickerID = activeSymbols[i].tickerID;
+        std::strncpy(msg.symbol, activeSymbols[i].symbol, sizeof(msg.symbol));
+        msg.msgType = 'R';
+        msg.msgLength = sizeof(uint16_t) + sizeof(uint16_t) + sizeof(msg.symbol) + sizeof(char); // 12
+        write(client_fd_, &msg, sizeof(msg));
+    }
+}
+
+void FeedServer::run()
+{
+
+
+
+
+
+
+
+
+
 }

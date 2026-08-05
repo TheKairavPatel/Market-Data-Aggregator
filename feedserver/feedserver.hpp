@@ -41,6 +41,7 @@ class FeedServer
     int server_fd_; // file descriptor for the server socket
     int client_fd_; // file descriptor for the client socket
     Symbol activeSymbols[10]; // array of active symbols
-    void sendStockDirectoryMsg(const StockDirectoryMsg& msg); // send a stock directory message to the client
+    void sendStockDirectoryMsgs(); // sends stock directory messages to the client
     OrderMsg GenerateEvent(); // generate a random event (add order, order executed, etc.) SIMULATION ONLY
+    void initSymbols();
 };
