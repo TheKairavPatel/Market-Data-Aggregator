@@ -13,6 +13,15 @@ struct StockDirectoryMsg
     char msgType; // R -> stock directory message, A -> Add order, E -> order executed
 };
 
+struct OrderMsg
+{
+    uint16_t msgLength; // how many bytes in this message
+    uint16_t tickerID; // unique identifier for the stock
+    uint32_t price; // Order Price
+    uint16_t qty; // How many shares in order
+    char msgType; // R -> stock directory message, A -> Add order, E -> order executed
+};
+
 struct Symbol
 {
     char symbol[7]; // stock symbol, null-terminated
@@ -31,7 +40,7 @@ class FeedServer
     std::string IP_; // IP address to listen on
     int server_fd_; // file descriptor for the server socket
     int client_fd_; // file descriptor for the client socket
-    Symbol activeSymbols[15]; // array of active symbols
+    Symbol activeSymbols[10]; // array of active symbols
     void sendStockDirectoryMsg(const StockDirectoryMsg& msg); // send a stock directory message to the client
-    void GenerateEvent(); // generate a random event (add order, order executed, etc.) SIMULATION ONLY
+    OrderMsg GenerateEvent(); // generate a random event (add order, order executed, etc.) SIMULATION ONLY
 };
