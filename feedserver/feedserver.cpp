@@ -8,12 +8,8 @@
 #include <cmath>
 #include <cstring>
 
-FeedServer::FeedServer(int port, std::string IP)
+FeedServer::FeedServer(int port, std::string IP, bool &running) : port_(port), IP_(IP), running_(running)
 {
-    // Saving server IP and Port
-    port_ = port;
-    IP_ = IP;
-    
     // Initialize the active symbols
     initSymbols();
 
@@ -25,6 +21,10 @@ FeedServer::FeedServer(int port, std::string IP)
     server_addr.sin_port = htons(port_);
     server_addr.sin_family = AF_INET;
     inet_pton(AF_INET, IP_.data(), &server_addr.sin_addr);
+
+    // Avoid OS protecting port in TIME_WAIT
+    int opt = 1;
+    setsockopt(server_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     // Bind socket to sockaddr_in & listen for connection (only 1 for this, no epoll needed)
     bind(server_fd_, (sockaddr*)&server_addr, sizeof(server_addr));
@@ -38,8 +38,12 @@ OrderMsg FeedServer::GenerateEvent()
     static std::mt19937 gen(rd());
     static std::discrete_distribution<int> eventPick({45, 40, 25});
     static std::uniform_int_distribution<int> symbolPick(0, 9);
-    static std::uniform_int_distribution<int> qtyPick(1, 500);
     static std::normal_distribution<double> pctMovePick(0.0, 0.001); // mean 0, stddev 0.1% of price
+    static std::discrete_distribution<int> qtyBucketPick({70, 20, 8, 2}); // bucket weights
+    static std::uniform_int_distribution<int> qtySmall(1, 10);
+    static std::uniform_int_distribution<int> qtyMed(11, 50);
+    static std::uniform_int_distribution<int> qtyLarge(51, 200);
+    static std::uniform_int_distribution<int> qtyBlock(201, 500);
 
     int outcome = eventPick(gen);
     char type = (outcome == 0) ? 'A' : (outcome == 1) ? 'U' : 'E';
@@ -53,7 +57,11 @@ OrderMsg FeedServer::GenerateEvent()
     if (newPrice < 100) newPrice = 100; // floor at $1.00, in cents
     sym.price = (uint32_t)(newPrice);
 
-    int qty = qtyPick(gen);
+    int bucket = qtyBucketPick(gen);
+    int qty = (bucket == 0) ? qtySmall(gen)
+            : (bucket == 1) ? qtyMed(gen)
+            : (bucket == 2) ? qtyLarge(gen)
+            : qtyBlock(gen);
 
     OrderMsg msg{};
     msg.tickerID = sym.tickerID;
@@ -72,35 +80,41 @@ void FeedServer::initSymbols()
     activeSymbols[2] = {"MSFT", 3, 30000}; // $300.00
     activeSymbols[3] = {"AMZN", 4, 350000}; // $3500.00
     activeSymbols[4] = {"TSLA", 5, 70000}; // $700.00
-    activeSymbols[5] = {"FB", 6, 35000}; // $350.00
-    activeSymbols[6] = {"NFLX", 7, 55000}; // $550.00
-    activeSymbols[7] = {"NVDA", 8, 22000}; // $220.00
-    activeSymbols[8] = {"BABA", 9, 20000}; // $200.00
-    activeSymbols[9] = {"INTC", 10, 5000}; // $50.00
 }
 
 void FeedServer::sendStockDirectoryMsgs()
 {
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 5; i++)
     {
         StockDirectoryMsg msg{};
         msg.tickerID = activeSymbols[i].tickerID;
         std::strncpy(msg.symbol, activeSymbols[i].symbol, sizeof(msg.symbol));
         msg.msgType = 'R';
         msg.msgLength = sizeof(uint16_t) + sizeof(uint16_t) + sizeof(msg.symbol) + sizeof(char); // 12
-        write(client_fd_, &msg, sizeof(msg));
+        write(client_fd_, &msg, msg.msgLength);
     }
 }
 
 void FeedServer::run()
 {
+    // Setup and accept client connection
+    sockaddr_in client_addr{};
+    socklen_t client_addr_len = sizeof(client_addr);
+    client_fd_ = accept(server_fd_, (sockaddr*)&client_addr, &client_addr_len);
+    
+    // Let client know ID to symbol mapping
+    sendStockDirectoryMsgs();
 
-
-
-
-
-
-
-
-
+    while (running_)
+    {
+        OrderMsg msg = GenerateEvent();
+        ssize_t sent = write(client_fd_, &msg, msg.msgLength);
+        if (sent <= 0)
+        {
+            break;
+        }
+        usleep(10000);
+    }
+    close(client_fd_);
+    close(server_fd_);
 }

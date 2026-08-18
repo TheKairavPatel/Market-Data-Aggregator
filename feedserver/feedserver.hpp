@@ -32,16 +32,17 @@ struct Symbol
 class FeedServer
 {
     public:
-    FeedServer(int port, std::string IP);
+    FeedServer(int port, std::string IP, bool &running);
     void run();
 
-    private:
+    public:
     int port_; // port number to listen on
     std::string IP_; // IP address to listen on
     int server_fd_; // file descriptor for the server socket
     int client_fd_; // file descriptor for the client socket
-    Symbol activeSymbols[10]; // array of active symbols
+    Symbol activeSymbols[5]; // array of active symbols
     void sendStockDirectoryMsgs(); // sends stock directory messages to the client
     OrderMsg GenerateEvent(); // generate a random event (add order, order executed, etc.) SIMULATION ONLY
     void initSymbols();
+    bool& running_;
 };

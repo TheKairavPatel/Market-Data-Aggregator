@@ -1,0 +1,39 @@
+#include "feedreader.hpp"
+
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#include <cstring>
+#include <cstdio>
+#include <chrono>
+
+FeedReader::FeedReader(std::string serverIP, int serverPort, bool& running, SPSCQueue<TradeEvent, 4096>& ingressQueue) : 
+    serverIP_(serverIP), 
+    serverPort_(serverPort), 
+    running_(running), 
+    ingressQueue_(ingressQueue) 
+    {}
+
+bool FeedReader::connectToServer() 
+{
+    server_fd_ = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd_ < 0) {
+        perror("socket failed");
+        return false;
+    }
+
+    sockaddr_in serv_addr {};
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(serverPort_);
+    if (inet_pton(AF_INET, serverIP_.c_str(), &serv_addr.sin_addr) <= 0) {
+        perror("inet_pton failed");
+        return false;
+    }
+    if (connect(server_fd_, (sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
+        perror("connect failed");
+        return false;
+    }
+
+    return true;
+}
