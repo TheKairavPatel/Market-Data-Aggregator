@@ -1,5 +1,4 @@
 #include "feedreader.hpp"
-
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -37,3 +36,27 @@ bool FeedReader::connectToServer()
 
     return true;
 }
+
+uint16_t FeedReader::readRawMsg(char* buffer, size_t bufferCap) 
+{
+    // Ensure we have at least 2 bytes to read the msgLength
+    int bytesRead = 0;
+    char tempBuf[2];
+    while (bytesRead < 2) 
+    {
+        int readRes = read(server_fd_, tempBuf + bytesRead, 2 - bytesRead);
+        if (readRes <= 0) 
+        {
+            perror("read failed or connection closed");
+            return 0; // return 0 on error
+        }
+        bytesRead += readRes;
+    }
+
+    uint16_t msgLength;
+    std::memcpy(&msgLength, tempBuf, 2);
+    
+}
+
+
+

@@ -50,6 +50,7 @@ private:
 
     bool connectToServer();          // opens server_fd_, connects to serverIP_:serverPort_
     void readStockDirectory();       // blocks reading the initial 'R' message burst, fills tickerToSymbolId_
-    void processBuffer();            // walks recvBuf_, extracts complete OrderMsgs, dispatches them
+    TradeEvent readEvent();            // walks recvBuf_, extracts complete OrderMsgs, dispatches them
+    uint16_t readRawMsg(char* buffer, size_t bufferCap);        
     void handleOrderMsg(const OrderMsg& msg); // converts to TradeEvent, pushes to ingressQueue_
 };

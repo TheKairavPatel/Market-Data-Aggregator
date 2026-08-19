@@ -20,6 +20,7 @@ struct OrderMsg
     uint32_t price; // Order Price
     uint16_t qty; // How many shares in order
     char msgType; // R -> stock directory message, A -> Add order, E -> order executed
+    char padding[1]; // pad to 12 bytes for alignment
 };
 
 struct Symbol
